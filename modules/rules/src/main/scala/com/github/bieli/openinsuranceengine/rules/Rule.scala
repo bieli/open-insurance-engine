@@ -22,3 +22,9 @@ enum RuleAction:
 
 object RuleAction:
   given CanEqual[RuleAction, RuleAction] = CanEqual.derived
+
+final case class RuleOutcome[C](
+    action: RuleAction,
+    context: C,
+    messages: List[String] = Nil
+)
