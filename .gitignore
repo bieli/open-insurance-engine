@@ -7,3 +7,5 @@ hs_err_pid*
 
 target/
 modules/*/*/target
+project/project/*
+project/target/*
