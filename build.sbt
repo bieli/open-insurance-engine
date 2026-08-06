@@ -47,13 +47,6 @@ lazy val core = (project in file("modules/core"))
   .settings(commonSettings)
   .settings(name := "oie-core")
 
-lazy val root = (project in file("."))
-  .aggregate(policy)
-  .settings(
-    name := "open-insurance-engine",
-    publish / skip := true
-  )
-
 lazy val policy = (project in file("modules/policy"))
   .settings(commonSettings)
   .settings(name := "oie-policy")
