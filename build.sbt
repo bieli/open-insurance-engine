@@ -37,6 +37,17 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
+  .aggregate(core, rules, validation, policy)
+  .settings(
+    name := "open-insurance-engine",
+    publish / skip := true
+  )
+
+lazy val core = (project in file("modules/core"))
+  .settings(commonSettings)
+  .settings(name := "oie-core")
+
+lazy val root = (project in file("."))
   .aggregate(policy)
   .settings(
     name := "open-insurance-engine",
