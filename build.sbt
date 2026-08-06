@@ -36,7 +36,6 @@ lazy val commonSettings = Seq(
   )
 )
 
-
 lazy val root = (project in file("."))
   .aggregate(policy)
   .settings(
@@ -47,3 +46,13 @@ lazy val root = (project in file("."))
 lazy val policy = (project in file("modules/policy"))
   .settings(commonSettings)
   .settings(name := "oie-policy")
+
+lazy val rules = (project in file("modules/rules"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(name := "oie-rules")
+
+lazy val validation = (project in file("modules/validation"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(name := "oie-validation")
