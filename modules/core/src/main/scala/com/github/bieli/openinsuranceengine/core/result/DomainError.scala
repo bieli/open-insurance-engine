@@ -10,3 +10,5 @@ object DomainError:
   final case class ValidationFailed(code: String, message: String, field: Option[String] = None) extends DomainError
 
   given CanEqual[DomainError, DomainError] = CanEqual.derived
+
+type DomainErrors = NonEmptyList[DomainError]
