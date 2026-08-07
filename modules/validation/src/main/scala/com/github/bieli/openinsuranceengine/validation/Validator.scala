@@ -43,3 +43,24 @@ object Field:
       DomainError
         .ValidationFailed("NON_BLANK", s"Field '$field' must not be blank", Some(field))
         .invalidNel
+
+  def positive(field: String, value: Long): ValidationResult[Long] =
+    if value > 0 then value.validNel
+    else
+      DomainError
+        .ValidationFailed("POSITIVE", s"Field '$field' must be positive", Some(field))
+        .invalidNel
+
+  def inRange(field: String, value: Int, min: Int, max: Int): ValidationResult[Int] =
+    if value >= min && value <= max then value.validNel
+    else
+      DomainError
+        .ValidationFailed("RANGE", s"Field '$field' must be in [$min, $max]", Some(field))
+        .invalidNel
+
+  def matches(field: String, value: String, pattern: String): ValidationResult[String] =
+    if value.matches(pattern) then value.validNel
+    else
+      DomainError
+        .ValidationFailed("PATTERN", s"Field '$field' does not match pattern $pattern", Some(field))
+        .invalidNel
