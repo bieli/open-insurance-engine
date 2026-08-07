@@ -12,3 +12,27 @@ type ValidationResult[A] = ValidatedNel[DomainError.ValidationFailed, A]
 
 trait Validator[A]:
   def validate(value: A): ValidationResult[A]
+
+object Validator:
+  def apply[A](f: A => ValidationResult[A]): Validator[A] = (value: A) => f(value)
+
+  def pure[A]: Validator[A] = (value: A) => value.validNel
+
+  def combine[A](validators: Validator[A]*): Validator[A] =
+    (value: A) =>
+      validators.toList
+        .traverse_(v => v.validate(value))
+        .as(value)
+
+  extension [A](v: ValidationResult[A])
+    def toDomainResult: Either[NonEmptyList[DomainError], A] =
+      v.toEither.leftMap(_.map(e => e: DomainError))
+
+object Field:
+  def required[A](field: String, value: Option[A]): ValidationResult[A] =
+    value match
+      case Some(a) => a.validNel
+      case None =>
+        DomainError
+          .ValidationFailed("REQUIRED", s"Field '$field' is required", Some(field))
+          .invalidNel
