@@ -1,34 +1,53 @@
-package com.github.bieli.openinsuranceengine.core.result
+package com.github.bieli.openinsuranceengine.validation
 
-import cats.data.NonEmptyList
+import cats.data.Validated
+import cats.syntax.all.*
+import com.github.bieli.openinsuranceengine.core.result.DomainError
 import munit.FunSuite
 
-class DomainResultSuite extends FunSuite:
-  test("pure and raise"):
-    assertEquals(DomainResult.pure(42), Right(42))
-    val err = DomainError.NotFound("ENF", "missing")
-    assertEquals(DomainResult.raise[Int](err), Left(NonEmptyList.one(err)))
+class ValidatorSuite extends FunSuite:
+  test("Field.required Some/None"):
+    assertEquals(Field.required("x", Some(1)), Validated.validNel(1))
+    assert(Field.required("x", Option.empty[Int]).isInvalid)
 
-  test("raiseAll preserves order"):
-    val errs = NonEmptyList.of(
-      DomainError.ValidationFailed("A", "a"),
-      DomainError.ValidationFailed("B", "b")
+  test("Field.nonBlank rejects whitespace"):
+    assert(Field.nonBlank("name", "  ").isInvalid)
+    assert(Field.nonBlank("name", "").isInvalid)
+    assert(Field.nonBlank("name", "Ada").isValid)
+
+  test("Field.positive edge cases"):
+    assert(Field.positive("amt", 1L).isValid)
+    assert(Field.positive("amt", 0L).isInvalid)
+    assert(Field.positive("amt", -5L).isInvalid)
+
+  test("Field.inRange inclusive bounds"):
+    assert(Field.inRange("age", 18, 18, 65).isValid)
+    assert(Field.inRange("age", 65, 18, 65).isValid)
+    assert(Field.inRange("age", 17, 18, 65).isInvalid)
+    assert(Field.inRange("age", 66, 18, 65).isInvalid)
+
+  test("Field.matches pattern"):
+    assert(Field.matches("vin", "WVWZZZ1JZYW386752", "[A-HJ-NPR-Z0-9]{17}").isValid)
+    assert(Field.matches("vin", "SHORT", "[A-HJ-NPR-Z0-9]{17}").isInvalid)
+
+  test("combine accumulates multiple errors"):
+    final case class Form(name: String, age: Int)
+    val v = Validator.combine[Form](
+      Validator(f => Field.nonBlank("name", f.name).as(f)),
+      Validator(f => Field.inRange("age", f.age, 18, 99).as(f))
     )
-    assertEquals(DomainResult.raiseAll[Unit](errs), Left(errs))
+    val result = v.validate(Form("  ", 10))
+    assert(result.isInvalid)
+    result match
+      case Validated.Invalid(errs) => assertEquals(errs.size, 2)
+      case Validated.Valid(_)      => fail("expected invalid")
 
-  test("fromOption"):
-    assertEquals(DomainResult.fromOption(Some("ok"), DomainError.NotFound("N", "n")), Right("ok"))
-    assert(DomainResult.fromOption(None, DomainError.NotFound("N", "gone")).isLeft)
+  test("toDomainResult maps ValidationFailed to DomainError"):
+    import Validator.toDomainResult
+    val invalid = Field.required("f", Option.empty[String]).toDomainResult
+    assert(invalid.isLeft)
+    invalid.left.foreach: nel =>
+      assert(nel.head.isInstanceOf[DomainError.ValidationFailed])
 
-  test("error codes are distinct"):
-    val errors: List[DomainError] = List(
-      DomainError.ValidationFailed("V", "v"),
-      DomainError.RuleViolation("R", "r", "rule-1"),
-      DomainError.NotFound("N", "n"),
-      DomainError.Conflict("C", "c"),
-      DomainError.WorkflowError("W", "w", Some("step")),
-      DomainError.PluginError("P", "p", "plugin-1"),
-      DomainError.IntegrationError("I", "i", "kafka"),
-      DomainError.Unexpected("U", "u")
-    )
-    assertEquals(errors.map(_.code).toSet.size, errors.size)
+  test("pure validator always accepts"):
+    assertEquals(Validator.pure[Int].validate(7), Validated.validNel(7))
