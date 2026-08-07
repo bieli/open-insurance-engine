@@ -36,3 +36,10 @@ object Field:
         DomainError
           .ValidationFailed("REQUIRED", s"Field '$field' is required", Some(field))
           .invalidNel
+
+  def nonBlank(field: String, value: String): ValidationResult[String] =
+    if value.trim.nonEmpty then value.validNel
+    else
+      DomainError
+        .ValidationFailed("NON_BLANK", s"Field '$field' must not be blank", Some(field))
+        .invalidNel
