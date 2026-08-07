@@ -1,5 +1,7 @@
 package com.github.bieli.openinsuranceengine.core.money
 
+import cats.Monoid
+
 /** ISO-4217 currency code as opaque type. */
 opaque type CurrencyCode = String
 
@@ -40,3 +42,17 @@ final case class Money(amountMinor: Long, currency: CurrencyCode):
   def toMajor: BigDecimal = BigDecimal(amountMinor) / 100
 
   override def toString: String = f"${toMajor}%1.2f ${currency.value}"
+
+object Money:
+  def zero(currency: CurrencyCode): Money = Money(0L, currency)
+  def fromMajor(major: BigDecimal, currency: CurrencyCode): Money =
+    Money((major * 100).setScale(0, BigDecimal.RoundingMode.HALF_UP).toLong, currency)
+
+  given CanEqual[Money, Money] = CanEqual.derived
+
+  def monoid(currency: CurrencyCode): Monoid[Money] = new Monoid[Money]:
+    def empty: Money = Money.zero(currency)
+    def combine(x: Money, y: Money): Money =
+      (x + y).getOrElse(
+        throw new IllegalArgumentException(s"Cannot combine ${x.currency.value} with ${y.currency.value}")
+      )
