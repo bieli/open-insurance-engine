@@ -30,3 +30,24 @@ class ValidatorSuite extends FunSuite:
     assert(Field.matches("vin", "WVWZZZ1JZYW386752", "[A-HJ-NPR-Z0-9]{17}").isValid)
     assert(Field.matches("vin", "SHORT", "[A-HJ-NPR-Z0-9]{17}").isInvalid)
 
+  test("combine accumulates multiple errors"):
+    final case class Form(name: String, age: Int)
+    val v = Validator.combine[Form](
+      Validator(f => Field.nonBlank("name", f.name).as(f)),
+      Validator(f => Field.inRange("age", f.age, 18, 99).as(f))
+    )
+    val result = v.validate(Form("  ", 10))
+    assert(result.isInvalid)
+    result match
+      case Validated.Invalid(errs) => assertEquals(errs.size, 2)
+      case Validated.Valid(_)      => fail("expected invalid")
+
+  test("toDomainResult maps ValidationFailed to DomainError"):
+    import Validator.toDomainResult
+    val invalid = Field.required("f", Option.empty[String]).toDomainResult
+    assert(invalid.isLeft)
+    invalid.left.foreach: nel =>
+      assert(nel.head.isInstanceOf[DomainError.ValidationFailed])
+
+  test("pure validator always accepts"):
+    assertEquals(Validator.pure[Int].validate(7), Validated.validNel(7))
