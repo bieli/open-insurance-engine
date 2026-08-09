@@ -2,9 +2,17 @@ package com.github.bieli.openinsuranceengine.policy
 
 import cats.effect.IO
 import com.github.bieli.openinsuranceengine.core.algebra.Repository
-import com.github.bieli.openinsuranceengine.core.id.*
+import com.github.bieli.openinsuranceengine.core.id.{
+  AccountTag,
+  CoverageTag,
+  EntityId,
+  PartyTag,
+  PolicyId,
+  PolicyTag,
+  ProductTag
+}
 import com.github.bieli.openinsuranceengine.core.money.{CurrencyCode, Money}
-import com.github.bieli.openinsuranceengine.core.product.*
+import com.github.bieli.openinsuranceengine.core.product.{Coverage, CoverageType, LineOfBusiness}
 import com.github.bieli.openinsuranceengine.core.risk.VehicleRisk
 import com.github.bieli.openinsuranceengine.core.time.{DateRange, EffectiveInstant}
 import munit.CatsEffectSuite
@@ -134,3 +142,13 @@ class PolicyServiceSuite extends CatsEffectSuite:
     val result = PolicyRules.personalAutoRuleSet.evaluate(uw)
     assert(result.isRight)
     assert(result.toOption.get.referrals.nonEmpty)
+
+  test("bind rejects Quoted period that lost all coverages"):
+    for
+      repo <- Repository.inMemory[IO, PolicyId, PolicyPeriod](_.policyId)
+      svc = PolicyService[IO](repo)
+      draft <- svc.createDraft(samplePeriod)
+      quoted <- svc.quote(draft.toOption.get)
+      stripped = quoted.toOption.get.copy(coverages = Nil)
+      result <- svc.bind(stripped, "POL-EMPTY")
+    yield assert(result.isLeft)
