@@ -31,3 +31,22 @@ sealed trait Party:
   def partyType: PartyType
   def roles: Set[PartyRole]
   def addresses: List[Address]
+
+final case class Person(
+    id: PartyId,
+    name: PersonName,
+    roles: Set[PartyRole],
+    addresses: List[Address],
+    dateOfBirth: Option[java.time.LocalDate] = None,
+    nationalId: Option[String] = None
+) extends Party:
+  val partyType: PartyType = PartyType.Person
+
+final case class Organization(
+    id: PartyId,
+    legalName: String,
+    roles: Set[PartyRole],
+    addresses: List[Address],
+    taxId: Option[String] = None
+) extends Party:
+  val partyType: PartyType = PartyType.Organization
