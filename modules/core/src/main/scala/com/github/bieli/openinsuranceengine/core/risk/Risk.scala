@@ -40,3 +40,12 @@ final case class GenericRisk(
     description: String,
     attributes: Map[String, String] = Map.empty
 ) extends RiskUnit
+
+/** Rating factor bag used by underwriting / pricing engines. */
+final case class RatingFactors(factors: Map[String, BigDecimal]):
+  def get(key: String): Option[BigDecimal] = factors.get(key)
+  def combine(other: RatingFactors): RatingFactors =
+    RatingFactors(factors ++ other.factors)
+  def product: BigDecimal =
+    if factors.isEmpty then BigDecimal(1)
+    else factors.values.product
