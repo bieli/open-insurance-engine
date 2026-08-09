@@ -26,3 +26,6 @@ jobs:
 
     - name: Run unit tests
       run: sbt test
+
+    - name: Run demo scenario
+      run: sbt "app/run --demo"
