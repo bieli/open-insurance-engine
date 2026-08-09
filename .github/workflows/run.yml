@@ -24,8 +24,8 @@ jobs:
     - name: Setup SBT
       uses: sbt/setup-sbt@v1
 
-    - name: Run unit tests
-      run: sbt test
+    - name: Run unit tests and coverage
+      run: sbt "clean; coverage; test; coverageReport"
 
     - name: Run demo scenario
       run: sbt "app/run --demo"
