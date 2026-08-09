@@ -60,3 +60,14 @@ lazy val validation = (project in file("modules/validation"))
   .dependsOn(core)
   .settings(commonSettings)
   .settings(name := "oie-validation")
+
+lazy val appModule = (project in file("modules/app"))
+  .dependsOn(core, policy, rules, validation) // Links internal sub-projects
+  .settings(
+    name := "open-insurance-engine-app",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect" % "3.5.4", // Resolves "Not found: cats"
+      "org.typelevel" %% "log4cats-slf4j" % "2.7.0"
+    )
+  )
+

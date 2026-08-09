@@ -1,7 +1,9 @@
 package com.github.bieli.openinsuranceengine.app
 
+import cats.effect.{IOApp, ExitCode}
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import cats.effect.IO
-import com.github.bieli.openinsuranceengine.app.Main.Services
 import com.github.bieli.openinsuranceengine.core.id.*
 import com.github.bieli.openinsuranceengine.core.money.{CurrencyCode, Money}
 import com.github.bieli.openinsuranceengine.core.product.*
@@ -10,9 +12,25 @@ import org.typelevel.log4cats.Logger
 
 import java.time.LocalDate
 
+
+object Main extends IOApp:
+
+  case class Services(name: String = "DefaultEngineServices")
+
+  implicit val logger: Logger[IO] = Slf4jLogger.getLogger[IO]
+
+  override def run(args: List[String]): IO[ExitCode] =
+    val services = Services()
+    
+    if (args.contains("--demo")) then
+      DemoScenario.run(services).as(ExitCode.Success)
+    else
+      IO(println("Application started normally without demo mode.")).as(ExitCode.Success)
+
+
 object DemoScenario:
 
-  def run(services: Services)(using logger: Logger[IO]): IO[Unit] =
+  def run(services: Any)(using logger: Logger[IO]): IO[Unit] =
     val currency = CurrencyCode.PLN
     val today = LocalDate.now()
 
@@ -52,3 +70,4 @@ object DemoScenario:
       _ <- IO(println(s"Services container available: ${services.getClass.getSimpleName}"))
       _ <- IO(println("Finished!"))
     } yield ()
+
