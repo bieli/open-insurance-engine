@@ -37,7 +37,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, rules, validation, policy)
+  .aggregate(core, rules, validation, policy, app)
   .settings(
     name := "open-insurance-engine",
     publish / skip := true
@@ -62,13 +62,15 @@ lazy val validation = (project in file("modules/validation"))
   .settings(commonSettings)
   .settings(name := "oie-validation")
 
-lazy val appModule = (project in file("modules/app"))
+lazy val app = (project in file("modules/app"))
   .dependsOn(core, policy, rules, validation)
   .settings(
     name := "open-insurance-engine-app",
+    Compile / run / fork := true,
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect" % "3.5.4",
-      "org.typelevel" %% "log4cats-slf4j" % "2.7.0"
+      "org.typelevel" %% "cats-effect" % catsEffectV,
+      "org.typelevel" %% "log4cats-slf4j" % log4catsV,
+      "ch.qos.logback" % "logback-classic" % logbackV % Runtime
     )
   )
 
