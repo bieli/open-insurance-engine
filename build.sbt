@@ -37,7 +37,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, rules, validation, policy, app)
+  .aggregate(core, rules, validation, policy, rating, plugins, billing, app)
   .settings(
     name := "open-insurance-engine",
     publish / skip := true
@@ -52,10 +52,25 @@ lazy val rules = (project in file("modules/rules"))
   .settings(commonSettings)
   .settings(name := "oie-rules")
 
+lazy val plugins = (project in file("modules/plugins"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(name := "oie-plugins")
+
+lazy val rating = (project in file("modules/rating"))
+  .dependsOn(core, plugins, policy)
+  .settings(commonSettings)
+  .settings(name := "oie-rating")
+
 lazy val policy = (project in file("modules/policy"))
   .dependsOn(core, rules)
   .settings(commonSettings)
   .settings(name := "oie-policy")
+
+lazy val billing = (project in file("modules/billing"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(name := "oie-billing")
 
 lazy val validation = (project in file("modules/validation"))
   .dependsOn(core)
@@ -63,7 +78,7 @@ lazy val validation = (project in file("modules/validation"))
   .settings(name := "oie-validation")
 
 lazy val app = (project in file("modules/app"))
-  .dependsOn(core, policy, rules, validation)
+  .dependsOn(core, policy, rules, validation, rating, billing, plugins)
   .settings(
     name := "open-insurance-engine-app",
     Compile / run / fork := true,
