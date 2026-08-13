@@ -5,7 +5,7 @@ import cats.syntax.all.*
 import com.github.bieli.openinsuranceengine.core.result.{DomainError, DomainResult}
 
 /**
- * Plugin SPI - mirrors Guidewire plugin architecture (pre/post update, rating,
+ * Plugin SPI - domain specific plugin architecture (pre/post update, rating,
  * geocoding, document production, payment gateways, etc.).
  */
 trait PluginCapability

@@ -4,7 +4,7 @@ import com.github.bieli.openinsuranceengine.core.result.{DomainError, DomainResu
 
 /**
  * Lookup table: maps an observed input (age, mileage, ...) onto a rating band + factor.
- * Tables are the core reusable building block of a Guidewire-style rate book.
+ * Tables are the core reusable building block of a domain-style rate book.
  */
 final case class RateBand(
     code: String,
