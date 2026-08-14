@@ -12,7 +12,7 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 | `rules` | Business rules engine (Accept / Reject / Modify / Refer) |
 | `validation` | Accumulating field validation (`ValidatedNel`) |
 | `plugins` | Plugin SPI (rating, underwriting, payments, fraud, documents...) |
-| `policy` | New business: draft → quote → bind → cancel |
+| `policy` | New business: draft -> quote -> bind -> cancel |
 | `rating` | Weighted / multiplicative rate engine, rate tables, worksheets, Personal Auto plan |
 | `billing` | BillingCenter: installment invoices, bill, apply payment |
 | `workflow` | Generic process engine: steps, transitions, guards, instance history |
@@ -83,7 +83,7 @@ flowchart TB
 
 ## Running demo app
 
-The demo binds a Personal Auto policy through the submission workflow (`draft → rate → underwrite → quote → bind`), then opens a collision FNOL and settles it (`open → reserve → approve → pay → close`).
+The demo binds a Personal Auto policy through the submission workflow (`draft -> rate -> underwrite -> quote -> bind`), then opens a collision FNOL and settles it (`open -> reserve -> approve -> pay -> close`).
 
 ```bash
 sbt "app/run --demo"
