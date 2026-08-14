@@ -18,7 +18,7 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 | `workflow` | Generic process engine: steps, transitions, guards, instance history |
 | `claim` | ClaimCenter: FNOL, reserves, approve, pay, close / deny |
 | `app` | Composition root and demo: submission workflow + rating + FNOL |
-| `rulesStudio` | Visual catalog editor: React + Synerise Design, served as static HTML/JS/CSS |
+| `rulesStudio` | Visual catalog editor: React JS, served as static HTML/JS/CSS |
 
 ### Module dependencies
 
@@ -108,7 +108,7 @@ Add a rule by appending an entry under `underwriting.rules` or `fnol.rules` (`ac
 
 ## Rules Studio
 
-A small http4s app that serves a React SPA (Synerise Design) so you can edit the catalog in the browser and download `oie-rules.yaml`. The server also exposes the current engine file at `GET /api/catalog.yaml`.
+A small http4s app that serves a React SPA so you can edit the catalog in the browser and download `oie-rules.yaml`. The server also exposes the current engine file at `GET /api/catalog.yaml`.
 
 ![Rules Studio - visual catalog editor with live YAML preview](assets/rules_studio_frontend_screenshot.png)
 
@@ -268,7 +268,7 @@ sbt test
 - Decline
 - log4cats
 - MUnit
-- http4s (Rules Studio)
-- React + Synerise Design (Rules Studio UI)
+- http4s (Rules Studio serving layer)
+- React JS (Rules Studio UI)
 
 ## TBD
