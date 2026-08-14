@@ -7,7 +7,7 @@ import com.github.bieli.openinsuranceengine.rules.{Rule, RuleSet}
 import munit.CatsEffectSuite
 
 /**
- * New-business submission workflow with an underwriting gate —
+ * New-business submission workflow with an underwriting gate -
  * mirrors PolicyCenter job progression: validate -> underwrite -> bind.
  */
 class SubmissionWorkflowSuite extends CatsEffectSuite:

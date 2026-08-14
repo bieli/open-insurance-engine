@@ -18,11 +18,12 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 | `workflow` | Generic process engine: steps, transitions, guards, instance history |
 | `claim` | ClaimCenter: FNOL, reserves, approve, pay, close / deny |
 | `app` | Composition root and demo: submission workflow + rating + FNOL |
+| `rulesStudio` | Visual catalog editor: React + Synerise Design, served as static HTML/JS/CSS |
 
 ### Module dependencies
 
 Arrows mean **depends on** (sbt `dependsOn`). `core` is the shared foundation; `app` is the composition root.
-`oie-rules.yaml` is the business catalog (UW, FNOL, claim checks, rate tables); `RuleCatalog` loads it, and `policy` / `claim` / `rating` consume it through `rules`.
+`oie-rules.yaml` is the business catalog (UW, FNOL, claim checks, rate tables); `RuleCatalog` loads it, and `policy` / `claim` / `rating` consume it through `rules`. Edit it visually with **Rules Studio** (`rulesStudio`), which generates the same YAML.
 
 ```mermaid
 flowchart TB
@@ -50,6 +51,7 @@ flowchart TB
 
   subgraph runtime["Runtime"]
     app["app"]
+    rulesStudio["rulesStudio"]
   end
 
   rulesBox --> core
@@ -80,6 +82,7 @@ flowchart TB
   app --> billing
   app --> workflow
   app --> claim
+  rulesStudio --> rulesBox
 ```
 
 ## Rules and dictionaries
@@ -103,10 +106,35 @@ Business rules and rate dictionaries live in one classpath YAML file. Domain cla
 
 Add a rule by appending an entry under `underwriting.rules` or `fnol.rules` (`action`: `reject` / `refer`, `when.field` + `op` + `value` or `otherField`). Add a tariff band under `rating.tables`. Available facts and `when.op` values are listed in the comments at the top of the YAML file.
 
+## Rules Studio
+
+A small http4s app that serves a React SPA (Synerise Design) so you can edit the catalog in the browser and download `oie-rules.yaml`. The server also exposes the current engine file at `GET /api/catalog.yaml`.
+
+![Rules Studio - visual catalog editor with live YAML preview](assets/rules_studio_frontend_screenshot.png)
+
+```bash
+# first time / after UI changes
+cd modules/rules-studio/frontend
+npm install --legacy-peer-deps
+npm run build
+
+# from the repo root
+sbt "rulesStudio/run"
+```
+
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Tabs cover underwriting, FNOL, claim checks, rate tables, and rate plans. The right pane is a live YAML preview with **Download YAML** / **Copy**. Drop the file into `modules/rules/src/main/resources/oie-rules.yaml` for the engine to pick it up.
+
+Frontend hot-reload (proxies `/api` to the Scala server):
+
+```bash
+cd modules/rules-studio/frontend && npm run dev
+```
+
 ## Requirements
 
 - JDK 17+
 - sbt 1.10+
+- Node.js 18+ (only for rebuilding Rules Studio UI)
 
 ## Running demo app
 
@@ -170,7 +198,7 @@ Before the workflow starts, `DemoScenario` builds a synthetic application:
 
 #### 1. New-business workflow: `draft -> rate -> underwrite -> quote -> bind`
 
-`WorkflowEngine` starts the `New Business Submission` definition with a `SubmissionState` payload (policy period + insured profile; worksheets are filled later). `start` does **not** execute the first step — it only sets `currentStepId = draft`. `runUntilDone` then calls `advance` until the instance status is `Completed`.
+`WorkflowEngine` starts the `New Business Submission` definition with a `SubmissionState` payload (policy period + insured profile; worksheets are filled later). `start` does **not** execute the first step - it only sets `currentStepId = draft`. `runUntilDone` then calls `advance` until the instance status is `Completed`.
 
 **`draft`.** `PolicyService.createDraft` checks that at least one coverage exists and that Personal Auto has a `VehicleRisk`. The period is saved with status `Draft`.
 
@@ -203,10 +231,10 @@ The line `Workflow: Completed via draft -> rate -> underwrite -> quote -> bind` 
 
 `ClaimService` then runs:
 
-1. **`openFnol`** — validation (non-blank description, loss date not in the future) plus FNOL rules: the policy **must be InForce** (it is), and reserves must not exceed the 1 000 000 PLN limit. Medium tier -> status `Open`, claim number `CLM-` plus 8 hex chars.
-2. **`setReserve`** — `vehicle_damage` reserve of **8 500 PLN** -> `Reserved`.
+1. **`openFnol`** - validation (non-blank description, loss date not in the future) plus FNOL rules: the policy **must be InForce** (it is), and reserves must not exceed the 1 000 000 PLN limit. Medium tier -> status `Open`, claim number `CLM-` plus 8 hex chars.
+2. **`setReserve`** - `vehicle_damage` reserve of **8 500 PLN** -> `Reserved`.
 3. **`approve`** -> `Approved`.
-4. **`pay`** — indemnity **7 500 PLN** to the insured, reference `IND-GOLF-001` -> `Paid`.
+4. **`pay`** - indemnity **7 500 PLN** to the insured, reference `IND-GOLF-001` -> `Paid`.
 5. **`close`** -> `Closed`.
 
 Hence: `Claim: CLM-D889D119 status=Closed paid=7500,00 PLN`. Reserve 8 500 vs payment 7 500 is intentional (estimate vs actual indemnity).
@@ -240,5 +268,7 @@ sbt test
 - Decline
 - log4cats
 - MUnit
+- http4s (Rules Studio)
+- React + Synerise Design (Rules Studio UI)
 
 ## TBD

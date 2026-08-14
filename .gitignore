@@ -9,3 +9,8 @@ target/
 modules/*/*/target
 project/project/*
 project/target/*
+
+node_modules/
+modules/rules-studio/frontend/node_modules/
+modules/rules-studio/frontend/dist/
+

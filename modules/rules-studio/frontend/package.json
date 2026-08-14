@@ -1,0 +1,36 @@
+{
+  "name": "oie-rules-studio",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@synerise/ds-button": "^1.5.36",
+    "@synerise/ds-card": "^1.3.19",
+    "@synerise/ds-core": "^1.13.2",
+    "@synerise/ds-input": "^1.8.1",
+    "@synerise/ds-layout": "^1.2.16",
+    "@synerise/ds-select": "^1.5.2",
+    "@synerise/ds-tabs": "^1.2.9",
+    "@synerise/ds-typography": "^1.1.28",
+    "antd": "4.24.16",
+    "js-yaml": "^4.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-intl": "6.8.9",
+    "styled-components": "^5.3.11"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/react": "18.3.17",
+    "@types/react-dom": "18.3.5",
+    "@types/styled-components": "^5.1.34",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11"
+  }
+}

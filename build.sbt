@@ -37,7 +37,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, rules, validation, policy, rating, plugins, billing, workflow, claim, app)
+  .aggregate(core, rules, validation, policy, rating, plugins, billing, workflow, claim, app, rulesStudio)
   .settings(
     name := "open-insurance-engine",
     publish / skip := true
@@ -101,6 +101,24 @@ lazy val app = (project in file("modules/app"))
       "com.monovore" %% "decline-effect" % declineV,
       "com.github.pureconfig" %% "pureconfig-core" % pureconfigV,
       "com.github.pureconfig" %% "pureconfig-generic-scala3" % pureconfigV,
+      "ch.qos.logback" % "logback-classic" % logbackV
+    )
+  )
+
+val http4sV = "0.23.30"
+
+lazy val rulesStudio = (project in file("modules/rules-studio"))
+  .dependsOn(rules)
+  .settings(commonSettings)
+  .settings(
+    name := "oie-rules-studio",
+    Compile / run / fork := true,
+    Compile / mainClass := Some("com.github.bieli.openinsuranceengine.rulesstudio.RulesStudio"),
+    // http4s DSL pattern matching uses == on Method/Path; keep this module off strictEquality
+    scalacOptions -= "-language:strictEquality",
+    libraryDependencies ++= Seq(
+      "org.http4s" %% "http4s-ember-server" % http4sV,
+      "org.http4s" %% "http4s-dsl" % http4sV,
       "ch.qos.logback" % "logback-classic" % logbackV
     )
   )
