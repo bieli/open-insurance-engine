@@ -9,7 +9,7 @@ import com.github.bieli.openinsuranceengine.core.money.Money
 import com.github.bieli.openinsuranceengine.core.product.{Coverage, LineOfBusiness}
 import com.github.bieli.openinsuranceengine.core.risk.{RiskUnit, VehicleRisk}
 import com.github.bieli.openinsuranceengine.core.time.{DateRange, EffectiveInstant}
-import com.github.bieli.openinsuranceengine.rules.{Rule, RuleSet}
+import com.github.bieli.openinsuranceengine.rules.{Fact, RuleCatalog, RuleSet}
 
 /** Policy lifecycle - PolicyCenter Job / PolicyPeriod analogue. */
 enum PolicyStatus:
@@ -88,19 +88,16 @@ final case class Endorsement(
 object PolicyRules:
   final case class UnderwritingContext(period: PolicyPeriod, driverAge: Option[Int])
 
-  val personalAutoRuleSet: RuleSet[UnderwritingContext] = RuleSet(
-    id = "personal-auto-uw",
-    name = "Personal Auto Underwriting",
-    rules = List(
-      Rule.referWhen[UnderwritingContext](
-        id = "young-driver",
-        name = "Young driver referral",
-        priority = 10,
-        predicate = _.driverAge.exists(_ < 21),
-        reason = ctx => s"Driver age ${ctx.driverAge.getOrElse("?")} requires underwriting referral"
-      )
+  def facts(ctx: UnderwritingContext): Map[String, Fact] =
+    Map(
+      "driverAge" -> Fact.fromOptionNum(ctx.driverAge),
+      "lineOfBusiness" -> Fact.Text(ctx.period.lineOfBusiness.toString),
+      "coverageCount" -> Fact.num(ctx.period.coverages.size),
+      "hasVehicle" -> Fact.Bool(ctx.period.risks.exists(_.isInstanceOf[VehicleRisk]))
     )
-  )
+
+  lazy val personalAutoRuleSet: RuleSet[UnderwritingContext] =
+    RuleCatalog.compile(RuleCatalog.document.underwriting, facts)
 
 final class PolicyService[F[_]: Sync](repo: Repository[F, PolicyId, PolicyPeriod]):
   def createDraft(period: PolicyPeriod): F[Either[String, PolicyPeriod]] =

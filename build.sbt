@@ -50,7 +50,10 @@ lazy val core = (project in file("modules/core"))
 lazy val rules = (project in file("modules/rules"))
   .dependsOn(core)
   .settings(commonSettings)
-  .settings(name := "oie-rules")
+  .settings(
+    name := "oie-rules",
+    libraryDependencies += "io.circe" %% "circe-yaml" % "0.15.2"
+  )
 
 lazy val plugins = (project in file("modules/plugins"))
   .dependsOn(core)
@@ -58,7 +61,7 @@ lazy val plugins = (project in file("modules/plugins"))
   .settings(name := "oie-plugins")
 
 lazy val rating = (project in file("modules/rating"))
-  .dependsOn(core, plugins, policy)
+  .dependsOn(core, plugins, policy, rules)
   .settings(commonSettings)
   .settings(name := "oie-rating")
 

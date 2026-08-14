@@ -7,61 +7,54 @@ import com.github.bieli.openinsuranceengine.core.id.ClaimId
 import com.github.bieli.openinsuranceengine.core.money.Money
 import com.github.bieli.openinsuranceengine.core.result.{DomainError, DomainResult}
 import com.github.bieli.openinsuranceengine.core.time.EffectiveInstant
-import com.github.bieli.openinsuranceengine.rules.{Rule, RuleSet}
+import com.github.bieli.openinsuranceengine.rules.{DeclaredCheck, Fact, RuleCatalog, RuleSet}
 import com.github.bieli.openinsuranceengine.validation.{Field, Validator}
 import com.github.bieli.openinsuranceengine.validation.Validator.toDomainResult
 
 object ClaimValidation:
-  val claimValidator: Validator[Claim] = Validator.combine(
-    Validator: c =>
-      Field.nonBlank("description", c.loss.description).as(c),
-    Validator: c =>
-      if c.loss.lossDate.isAfter(java.time.LocalDate.now()) then
-        com.github.bieli.openinsuranceengine.core.result.DomainError
-          .ValidationFailed("LOSS_DATE", "Loss date cannot be in the future", Some("loss.lossDate"))
-          .invalidNel
-      else c.validNel
-  )
+  val claimValidator: Validator[Claim] =
+    val checks = RuleCatalog.document.claimValidation.map(toValidator)
+    if checks.isEmpty then Validator.pure[Claim]
+    else Validator.combine(checks*)
+
+  private def toValidator(check: DeclaredCheck): Validator[Claim] =
+    Validator: claim =>
+      check.check.trim.toLowerCase match
+        case "nonblank" =>
+          Field.nonBlank(check.field, stringField(claim, check.field)).as(claim)
+        case "notinfuture" =>
+          if dateField(claim, check.field).isAfter(java.time.LocalDate.now()) then
+            DomainError.ValidationFailed(check.id, check.message, Some(check.field)).invalidNel
+          else claim.validNel
+        case other =>
+          DomainError
+            .ValidationFailed("UNKNOWN_CHECK", s"Unknown claim validation '$other'", Some(check.field))
+            .invalidNel
+
+  private def stringField(claim: Claim, field: String): String =
+    field.trim.toLowerCase match
+      case "description" | "loss.description" => claim.loss.description
+      case _                                  => ""
+
+  private def dateField(claim: Claim, field: String): java.time.LocalDate =
+    field.trim.toLowerCase match
+      case "lossdate" | "loss.lossdate" => claim.loss.lossDate
+      case _                            => java.time.LocalDate.now()
 
 object ClaimRules:
   final case class FnolContext(claim: Claim, policyInForce: Boolean, coverageLimit: Option[Money])
 
-  val policyMustBeInForce: Rule[FnolContext] =
-    Rule.rejectWhen(
-      id = "CLM_POLICY_INFORCE",
-      name = "Policy must be in force",
-      priority = 1,
-      predicate = ctx => !ctx.policyInForce,
-      reason = _ => "Cannot open claim against a policy that is not in force"
+  def facts(ctx: FnolContext): Map[String, Fact] =
+    val reservesMajor = ctx.claim.totalReserves.toOption.map(_.toMajor)
+    Map(
+      "policyInForce" -> Fact.Bool(ctx.policyInForce),
+      "totalReserves" -> Fact.fromOptionBig(reservesMajor),
+      "coverageLimit" -> Fact.fromOptionBig(ctx.coverageLimit.map(_.toMajor)),
+      "tier" -> Fact.Text(ctx.claim.tier.toString)
     )
 
-  val reserveWithinLimit: Rule[FnolContext] =
-    Rule.rejectWhen(
-      id = "CLM_RESERVE_LIMIT",
-      name = "Reserve within coverage limit",
-      priority = 10,
-      predicate = ctx =>
-        (ctx.coverageLimit, ctx.claim.totalReserves) match
-          case (Some(limit), Right(res)) => res.amountMinor > limit.amountMinor
-          case _                         => false,
-      reason = _ => "Total reserves exceed coverage limit"
-    )
-
-  val highSeverityReferral: Rule[FnolContext] =
-    Rule.referWhen(
-      id = "CLM_HIGH_SEVERITY",
-      name = "High severity referral",
-      priority = 20,
-      predicate = ctx => ctx.claim.tier == ClaimTier.High || ctx.claim.tier == ClaimTier.Catastrophe,
-      reason = ctx => s"Claim tier ${ctx.claim.tier} requires specialist handling"
-    )
-
-  val fnolRuleSet: RuleSet[FnolContext] =
-    RuleSet(
-      id = "RS_FNOL",
-      name = "First Notice of Loss",
-      rules = List(policyMustBeInForce, reserveWithinLimit, highSeverityReferral)
-    )
+  lazy val fnolRuleSet: RuleSet[FnolContext] =
+    RuleCatalog.compile(RuleCatalog.document.fnol, facts)
 
 trait ClaimService[F[_]]:
   def openFnol(claim: Claim, policyInForce: Boolean, coverageLimit: Option[Money]): F[DomainResult[Claim]]

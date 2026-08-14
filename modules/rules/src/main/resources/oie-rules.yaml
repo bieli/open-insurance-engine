@@ -1,0 +1,292 @@
+# Open Insurance Engine - business catalog
+#
+# Add or change underwriting, FNOL, claim-validation and rating entries here.
+# Code only compiles these declarations; it does not hardcode the business rules.
+#
+# Underwriting facts: driverAge, lineOfBusiness, coverageCount, hasVehicle
+# FNOL facts:          policyInForce, totalReserves, coverageLimit, tier
+# Claim checks:        description, lossDate
+# Rating sources:      profile.age | profile.yearsLicensed | profile.priorClaimsLast3Years
+#                      profile.creditBand | profile.regionCode
+#                      vehicle.annualMileage | vehicle.ageYears
+#
+# when.op: lt | lte | gt | gte | eq | neq | in | isTrue | isFalse
+# when.value: scalar or list; when.otherField compares two facts
+# Money facts (totalReserves, coverageLimit) are major units (e.g. 1000.00 PLN -> 1000)
+
+underwriting:
+  id: personal-auto-uw
+  name: Personal Auto Underwriting
+  rules:
+    - id: young-driver
+      name: Young driver referral
+      priority: 10
+      action: refer
+      when:
+        field: driverAge
+        op: lt
+        value: 21
+      reason: "Driver age {driverAge} requires underwriting referral"
+
+fnol:
+  id: RS_FNOL
+  name: First Notice of Loss
+  rules:
+    - id: CLM_POLICY_INFORCE
+      name: Policy must be in force
+      priority: 1
+      action: reject
+      when:
+        field: policyInForce
+        op: eq
+        value: false
+      reason: "Cannot open claim against a policy that is not in force"
+    - id: CLM_RESERVE_LIMIT
+      name: Reserve within coverage limit
+      priority: 10
+      action: reject
+      when:
+        field: totalReserves
+        op: gt
+        otherField: coverageLimit
+      reason: "Total reserves exceed coverage limit"
+    - id: CLM_HIGH_SEVERITY
+      name: High severity referral
+      priority: 20
+      action: refer
+      when:
+        field: tier
+        op: in
+        value: [High, Catastrophe]
+      reason: "Claim tier {tier} requires specialist handling"
+
+claimValidation:
+  - id: NON_BLANK
+    field: description
+    check: nonBlank
+    message: "Field 'description' must not be blank"
+  - id: LOSS_DATE
+    field: lossDate
+    check: notInFuture
+    message: "Loss date cannot be in the future"
+
+rating:
+  defaultBaseRateMajor: 1000
+  currency: PLN
+  tables:
+    - id: age
+      name: Driver age
+      kind: numeric
+      bands:
+        - label: "Young (<21)"
+          max: 21
+          factor: 1.85
+        - label: "Youth (21-24)"
+          min: 21
+          max: 25
+          factor: 1.45
+        - label: "Young adult (25-29)"
+          min: 25
+          max: 30
+          factor: 1.15
+        - label: "Standard (30-49)"
+          min: 30
+          max: 50
+          factor: 1.00
+        - label: "Mature (50-64)"
+          min: 50
+          max: 65
+          factor: 0.92
+        - label: "Senior (65+)"
+          min: 65
+          factor: 1.10
+    - id: experience
+      name: Years licensed
+      kind: numeric
+      bands:
+        - label: "Novice (<2y)"
+          max: 2
+          factor: 1.50
+        - label: "Junior (2-4y)"
+          min: 2
+          max: 5
+          factor: 1.20
+        - label: "Intermediate (5-9y)"
+          min: 5
+          max: 10
+          factor: 1.05
+        - label: "Experienced (10y+)"
+          min: 10
+          factor: 0.95
+    - id: claims
+      name: Prior claims (3y)
+      kind: numeric
+      bands:
+        - label: "Claim-free"
+          max: 1
+          factor: 0.90
+        - label: "1 claim"
+          min: 1
+          max: 2
+          factor: 1.15
+        - label: "2 claims"
+          min: 2
+          max: 3
+          factor: 1.40
+        - label: "3+ claims"
+          min: 3
+          factor: 1.85
+    - id: mileage
+      name: Annual mileage
+      kind: numeric
+      bands:
+        - label: "Low (<8k)"
+          max: 8000
+          factor: 0.88
+        - label: "Average (8-15k)"
+          min: 8000
+          max: 15000
+          factor: 1.00
+        - label: "High (15-25k)"
+          min: 15000
+          max: 25000
+          factor: 1.18
+        - label: "Very high (25k+)"
+          min: 25000
+          factor: 1.35
+    - id: vehicle-age
+      name: Vehicle age
+      kind: numeric
+      bands:
+        - label: "New (0-2y)"
+          max: 3
+          factor: 1.20
+        - label: "Mid (3-7y)"
+          min: 3
+          max: 8
+          factor: 1.00
+        - label: "Older (8-14y)"
+          min: 8
+          max: 15
+          factor: 0.90
+        - label: "Vintage (15y+)"
+          min: 15
+          factor: 0.85
+    - id: credit
+      name: Credit band
+      kind: categorical
+      bands:
+        - code: Excellent
+          label: Excellent
+          factor: 0.85
+        - code: Good
+          label: Good
+          factor: 0.92
+        - code: Standard
+          label: Standard
+          factor: 1.00
+        - code: Fair
+          label: Fair
+          factor: 1.15
+        - code: Poor
+          label: Poor
+          factor: 1.35
+    - id: region
+      name: Region
+      kind: categorical
+      bands:
+        - code: PL-MZ
+          label: Mazowieckie (Warsaw)
+          factor: 1.25
+        - code: PL-MA
+          label: Małopolskie
+          factor: 1.10
+        - code: PL-DS
+          label: Dolnośląskie
+          factor: 1.08
+        - code: PL-OTHER
+          label: Other regions
+          factor: 1.00
+  plans:
+    - id: PA-WEIGHTED-PL-2026
+      name: Personal Auto Weighted (PL 2026)
+      mode: WeightedAverage
+      factors:
+        - code: AGE
+          name: Driver age
+          weight: 2.5
+          table: age
+          source: profile.age
+        - code: EXPERIENCE
+          name: Years licensed
+          weight: 1.5
+          table: experience
+          source: profile.yearsLicensed
+        - code: CLAIMS
+          name: Prior claims
+          weight: 2.0
+          table: claims
+          source: profile.priorClaimsLast3Years
+        - code: CREDIT
+          name: Credit band
+          weight: 1.2
+          table: credit
+          source: profile.creditBand
+        - code: REGION
+          name: Region
+          weight: 1.0
+          table: region
+          source: profile.regionCode
+          fallback: PL-OTHER
+        - code: MILEAGE
+          name: Annual mileage
+          weight: 1.0
+          table: mileage
+          source: vehicle.annualMileage
+          default: 12000
+        - code: VEHICLE_AGE
+          name: Vehicle age
+          weight: 0.8
+          table: vehicle-age
+          source: vehicle.ageYears
+    - id: PA-MULT-PL-2026
+      name: Personal Auto Multiplicative (PL 2026)
+      mode: Multiplicative
+      factors:
+        - code: AGE
+          name: Driver age
+          weight: 2.5
+          table: age
+          source: profile.age
+        - code: EXPERIENCE
+          name: Years licensed
+          weight: 1.5
+          table: experience
+          source: profile.yearsLicensed
+        - code: CLAIMS
+          name: Prior claims
+          weight: 2.0
+          table: claims
+          source: profile.priorClaimsLast3Years
+        - code: CREDIT
+          name: Credit band
+          weight: 1.2
+          table: credit
+          source: profile.creditBand
+        - code: REGION
+          name: Region
+          weight: 1.0
+          table: region
+          source: profile.regionCode
+          fallback: PL-OTHER
+        - code: MILEAGE
+          name: Annual mileage
+          weight: 1.0
+          table: mileage
+          source: vehicle.annualMileage
+          default: 12000
+        - code: VEHICLE_AGE
+          name: Vehicle age
+          weight: 0.8
+          table: vehicle-age
+          source: vehicle.ageYears
