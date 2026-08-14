@@ -76,6 +76,27 @@ flowchart TB
   app --> claim
 ```
 
+## Rules and dictionaries
+
+Business rules and rate dictionaries live in one classpath YAML file. Domain classes (`PolicyRules`, `ClaimRules`, `PersonalAutoRatePlan`) only compile it; they do not hardcode the catalog.
+
+| | |
+|--|--|
+| File | `modules/rules/src/main/resources/oie-rules.yaml` |
+| Loader | `RuleCatalog` (`modules/rules`) |
+| Rate book | `RateBook` compiles the `rating` section into tables and plans |
+
+**Top-level YAML keys**
+
+| Key | What it drives |
+|-----|----------------|
+| `underwriting` | UW `RuleSet` (demo: `young-driver` referral if `driverAge` &lt; 21) |
+| `fnol` | FNOL `RuleSet` (policy in force, reserve vs limit, high-severity refer) |
+| `claimValidation` | Field checks before FNOL (`nonBlank`, `notInFuture`) |
+| `rating` | Rate tables (`age`, `region`, …) and plans (`PA-WEIGHTED-PL-2026`, `PA-MULT-PL-2026`) |
+
+Add a rule by appending an entry under `underwriting.rules` or `fnol.rules` (`action`: `reject` / `refer`, `when.field` + `op` + `value` or `otherField`). Add a tariff band under `rating.tables`. Available facts and `when.op` values are listed in the comments at the top of the YAML file.
+
 ## Requirements
 
 - JDK 17+
