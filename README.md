@@ -8,12 +8,73 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 
 | Module | Role |
 |--------|------|
-| `core` | Opaque IDs, Money (minor units), Time, Result |
+| `core` | Opaque IDs, Money (minor units), Time, Result, in-memory `Repository` |
 | `rules` | Business rules engine (Accept / Reject / Modify / Refer) |
 | `validation` | Accumulating field validation (`ValidatedNel`) |
 | `plugins` | Plugin SPI (rating, underwriting, payments, fraud, documents...) |
-| `policy` | New business: draft -> quote -> bind -> cancel |
+| `policy` | New business: draft → quote → bind → cancel |
 | `rating` | Weighted / multiplicative rate engine, rate tables, worksheets, Personal Auto plan |
+| `billing` | BillingCenter: installment invoices, bill, apply payment |
+| `workflow` | Generic process engine: steps, transitions, guards, instance history |
+| `claim` | ClaimCenter: FNOL, reserves, approve, pay, close / deny |
+| `app` | Composition root and demo: submission workflow + rating + FNOL |
+
+### Module dependencies
+
+Arrows mean **depends on** (sbt `dependsOn`). `core` is the shared foundation; `app` is the composition root.
+
+```mermaid
+flowchart TB
+  subgraph foundation["Foundation"]
+    core["core"]
+  end
+
+  subgraph shared["Shared"]
+    rules["rules"]
+    validation["validation"]
+    plugins["plugins"]
+    billing["billing"]
+  end
+
+  subgraph domain["Domain"]
+    policy["policy"]
+    workflow["workflow"]
+    rating["rating"]
+    claim["claim"]
+  end
+
+  subgraph runtime["Runtime"]
+    app["app"]
+  end
+
+  rules --> core
+  validation --> core
+  plugins --> core
+  billing --> core
+
+  policy --> core
+  policy --> rules
+  workflow --> core
+  workflow --> rules
+  rating --> core
+  rating --> plugins
+  rating --> policy
+  claim --> core
+  claim --> rules
+  claim --> validation
+  claim --> workflow
+  claim --> plugins
+
+  app --> core
+  app --> rules
+  app --> validation
+  app --> plugins
+  app --> policy
+  app --> rating
+  app --> billing
+  app --> workflow
+  app --> claim
+```
 
 ## Requirements
 
@@ -22,36 +83,28 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 
 ## Running demo app
 
+The demo binds a Personal Auto policy through the submission workflow (`draft → rate → underwrite → quote → bind`), then opens a collision FNOL and settles it (`open → reserve → approve → pay → close`).
+
 ```bash
 sbt "app/run --demo"
+```
 
-
-[info] Starting demo scenario on 2026-08-13...
-[info] 23:15:49.278 [io-compute-1] INFO  c.g.b.openinsuranceengine.app.Main - === 1. Create draft policy ===
-[info] 23:15:49.288 [io-compute-1] INFO  c.g.b.openinsuranceengine.app.Main - === 2. Weighted rating (client profile -> premium) ===
-[info] 23:15:49.294 [io-compute-1] INFO  c.g.b.openinsuranceengine.app.Main - Insured: age=23, licensed=3y, claims=1, credit=Standard, region=PL-MZ
-[info] Created Account: ae9ab8f9-0abf-4da3-ba99-dc7991dbf292, Party: 866a9032-2142-4184-8fc8-81eda13fe1e6
-[info] Product ID: 3672d1f5-9d84-4569-8ddb-b372415e7380, Policy ID: 95f0766a-4ecb-4ec9-9015-5e2dd6187b40
+```
+[info] Starting demo scenario on 2026-08-14...
+[info] === New-business workflow: New Business Submission ===
+[info] Workflow step: draft
+[info] Workflow step: rate
+[info] Workflow step: underwrite
+[info] Workflow step: quote
+[info] Workflow step: bind
 [info] Coverage: BI (Base Premium: 1000,00 PLN)
 [info] Vehicle: Volkswagen Golf
 [info] Rated premium: 1215,50 PLN
-[info] Rate worksheet (WeightedAverage)
-[info]   Base rate:      1000,00 PLN
-[info]   Combined factor: 1.2155
-[info]   Final premium:  1215,50 PLN
-[info]   Factors:
-[info]     - AGE              Driver age                   input=23           band=Youth (21-24)    factor=1,450  weight= 2,50
-[info]     - EXPERIENCE       Years licensed               input=3            band=Junior (2-4y)    factor=1,200  weight= 1,50
-[info]     - CLAIMS           Prior claims                 input=1            band=1 claim          factor=1,150  weight= 2,00
-[info]     - CREDIT           Credit band                  input=Standard     band=Standard         factor=1,000  weight= 1,20
-[info]     - REGION           Region                       input=PL-MZ        band=Mazowieckie (Warsaw) factor=1,250  weight= 1,00
-[info]     - MILEAGE          Annual mileage               input=15000        band=High (15-25k)    factor=1,180  weight= 1,00
-[info]     - VEHICLE_AGE      Vehicle age                  input=6            band=Mid (3-7y)       factor=1,000  weight= 0,80
-[info] Services container available: Services
+[info] Workflow: Completed via draft -> rate -> underwrite -> quote -> bind
+[info] Policy: status=InForce number=POL-9EE21C0C
+[info] === First notice of loss ===
+[info] Claim: CLM-55C0811F status=Closed paid=7500,00 PLN
 [info] Finished!
-
-
-
 ```
 
 ## Running unit tests
