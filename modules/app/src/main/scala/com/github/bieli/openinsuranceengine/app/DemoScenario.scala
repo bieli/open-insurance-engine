@@ -19,9 +19,11 @@ import com.github.bieli.openinsuranceengine.core.money.{CurrencyCode, Money}
 import com.github.bieli.openinsuranceengine.core.product.*
 import com.github.bieli.openinsuranceengine.core.risk.VehicleRisk
 import com.github.bieli.openinsuranceengine.core.time.{DateRange, EffectiveInstant}
+import com.github.bieli.openinsuranceengine.core.result.DomainResult
 import com.github.bieli.openinsuranceengine.plugins.PluginRegistry
 import com.github.bieli.openinsuranceengine.policy.*
 import com.github.bieli.openinsuranceengine.rating.*
+import com.github.bieli.openinsuranceengine.workflow.{WorkflowDefinition, WorkflowEngine, WorkflowInstance, WorkflowStatus}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -33,7 +35,8 @@ object Main extends IOApp:
       policy: PolicyService[IO],
       billing: BillingService[IO],
       plugins: PluginRegistry[IO, PolicyPeriod],
-      ratingEngine: RatingEngine
+      ratingEngine: RatingEngine,
+      workflow: WorkflowEngine[IO, SubmissionState]
   )
 
   private def buildServices: IO[Services] =
@@ -57,7 +60,8 @@ object Main extends IOApp:
       policy = PolicyService[IO](policyRepo),
       billing = BillingService[IO](invoiceRepo, paymentRepo),
       plugins = plugins,
-      ratingEngine = engine
+      ratingEngine = engine,
+      workflow = WorkflowEngine[IO, SubmissionState]
     )
 
   implicit val logger: Logger[IO] = Slf4jLogger.getLogger[IO]
@@ -123,33 +127,59 @@ object DemoScenario:
       creditBand = CreditBand.Standard
     )
 
+    val definition = SubmissionWorkflow.definition(services.policy, services.ratingEngine)
+    val submission = SubmissionState(period = period, insured = insured)
+
     for
       _ <- IO(println(s"Starting demo scenario on $today..."))
-      _ <- logger.info("=== 1. Create draft policy ===")
-      draft <- services.policy.createDraft(period).flatMap(requireOk("createDraft"))
-
-      _ <- logger.info("=== 2. Weighted rating (client profile -> premium) ===")
       _ <- logger.info(
         s"Insured: age=${insured.age}, licensed=${insured.yearsLicensed}y, claims=${insured.priorClaimsLast3Years}, " +
           s"credit=${insured.creditBand}, region=${insured.regionCode}"
       )
-      ratedPair <- IO.fromEither(
-        PolicyRatingPlugin
-          .rateWithWorksheets(services.ratingEngine, PersonalAutoRatePlan.weightedPlan, insured, draft)
-          .leftMap(errs => new RuntimeException(errs.toList.map(e => s"${e.code}: ${e.message}").mkString(", ")))
-      )
-      (rated, worksheets) = ratedPair
+      _ <- logger.info(s"=== New-business workflow: ${definition.name} ===")
+      started <- services.workflow.start(definition, submission).flatMap(requireDomain("workflow.start"))
+      done <- runUntilDone(services.workflow, definition, started)
+      rated = done.state.period
+      worksheets = done.state.worksheets
       _ <- IO(println(s"Created Account: $accountId, Party: $partyId"))
       _ <- IO(println(s"Product ID: $productId, Policy ID: $policyId"))
       _ <- IO(println(s"Coverage: ${coverage.code} (Base Premium: $baseCoveragePremium)"))
       _ <- IO(println(s"Vehicle: ${vehicle.make} ${vehicle.model}"))
       _ <- IO(println(s"Rated premium: ${rated.totalPremium}"))
       _ <- worksheets.traverse_(w => IO(println(w.summary)))
+      _ <- IO(
+        println(
+          s"Workflow: ${done.status} via ${done.history.map(_.stepId).mkString(" -> ")}"
+        )
+      )
+      _ <- IO(
+        println(
+          s"Policy: status=${rated.status} number=${rated.policyNumber.getOrElse("N/A")}"
+        )
+      )
       _ <- IO(println(s"Services container available: ${services.getClass.getSimpleName}"))
       _ <- IO(println("Finished!"))
     yield ()
 
-  private def requireOk[A](step: String)(result: Either[String, A]): IO[A] =
+  private def runUntilDone[S](
+      engine: WorkflowEngine[IO, S],
+      definition: WorkflowDefinition[S, IO],
+      instance: WorkflowInstance[S]
+  )(using logger: Logger[IO]): IO[WorkflowInstance[S]] =
+    def loop(current: WorkflowInstance[S]): IO[WorkflowInstance[S]] =
+      current.status match
+        case WorkflowStatus.Completed | WorkflowStatus.Failed | WorkflowStatus.Cancelled =>
+          IO.pure(current)
+        case _ =>
+          val stepId = current.currentStepId.getOrElse("?")
+          logger.info(s"Workflow step: $stepId") *>
+            engine.advance(current, definition).flatMap(requireDomain(s"workflow.$stepId")).flatMap(loop)
+    loop(instance)
+
+  private def requireDomain[A](step: String)(result: DomainResult[A]): IO[A] =
     result match
       case Right(value) => IO.pure(value)
-      case Left(err)    => IO.raiseError(new RuntimeException(s"$step failed: $err"))
+      case Left(errs) =>
+        IO.raiseError(
+          new RuntimeException(errs.toList.map(e => s"$step: ${e.code}: ${e.message}").mkString(", "))
+        )
