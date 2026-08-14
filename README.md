@@ -22,6 +22,7 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 ### Module dependencies
 
 Arrows mean **depends on** (sbt `dependsOn`). `core` is the shared foundation; `app` is the composition root.
+`oie-rules.yaml` is the business catalog (UW, FNOL, claim checks, rate tables); `RuleCatalog` loads it, and `policy` / `claim` / `rating` consume it through `rules`.
 
 ```mermaid
 flowchart TB
@@ -30,7 +31,11 @@ flowchart TB
   end
 
   subgraph shared["Shared"]
-    rules["rules"]
+    subgraph rulesBox["rules"]
+      yaml["oie-rules.yaml"]
+      catalog["RuleCatalog"]
+      catalog --> yaml
+    end
     validation["validation"]
     plugins["plugins"]
     billing["billing"]
@@ -39,7 +44,7 @@ flowchart TB
   subgraph domain["Domain"]
     policy["policy"]
     workflow["workflow"]
-    rating["rating"]
+    rating["rating / RateBook"]
     claim["claim"]
   end
 
@@ -47,26 +52,27 @@ flowchart TB
     app["app"]
   end
 
-  rules --> core
+  rulesBox --> core
   validation --> core
   plugins --> core
   billing --> core
 
   policy --> core
-  policy --> rules
+  policy --> rulesBox
   workflow --> core
-  workflow --> rules
+  workflow --> rulesBox
   rating --> core
   rating --> plugins
   rating --> policy
+  rating --> rulesBox
   claim --> core
-  claim --> rules
+  claim --> rulesBox
   claim --> validation
   claim --> workflow
   claim --> plugins
 
   app --> core
-  app --> rules
+  app --> rulesBox
   app --> validation
   app --> plugins
   app --> policy
