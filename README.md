@@ -124,6 +124,74 @@ sbt "app/run --demo"
 [success] Total time: 3 s, completed 14 sie 2026, 20:55:56
 ```
 
+### What the demo does
+
+The demo replays one end-to-end customer story: **new Personal Auto policy -> rating -> bind -> collision claim and payout**. Everything runs in memory (in-memory repositories); there is no database and no network I/O.
+
+There are two phases: **new business** (workflow), then **FNOL** (claim). Identifiers (`Account`, `Party`, `Product`, `Policy`, claim number) are random UUIDs, so they change on every run. Premium math is deterministic for this fixture.
+
+The `Services` container also holds `BillingService` and a registered `PolicyRatingPlugin`, but **this run does not call billing**. Rating is invoked directly via `PolicyRatingPlugin.rateWithWorksheets`, not via `plugins.executeAll`.
+
+#### 0. The submission being rated
+
+Before the workflow starts, `DemoScenario` builds a synthetic application:
+
+- **Insured**: age 23, 3 years licensed, 1 claim in the last 3 years, credit band `Standard`, region `PL-MZ` (Mazowieckie / Warsaw)
+- **Risk**: Volkswagen Golf 2020, 15 000 km/year, plate `WA12345`
+- **Coverage**: `BI` (bodily injury), limit 1 000 000 PLN, deductible 500 PLN, **base tariff 1 000 PLN**
+- **Term**: from today for 1 year, line of business Personal Auto, job type `Submission`
+
+#### 1. New-business workflow: `draft -> rate -> underwrite -> quote -> bind`
+
+`WorkflowEngine` starts the `New Business Submission` definition with a `SubmissionState` payload (policy period + insured profile; worksheets are filled later). `start` does **not** execute the first step — it only sets `currentStepId = draft`. `runUntilDone` then calls `advance` until the instance status is `Completed`.
+
+**`draft`.** `PolicyService.createDraft` checks that at least one coverage exists and that Personal Auto has a `VehicleRisk`. The period is saved with status `Draft`.
+
+**`rate`.** The engine applies plan `Personal Auto Weighted (PL 2026)` on top of the 1 000 PLN base. Combination mode is **weighted average**, not a product of factors.
+
+| Factor | Input | Band | Factor | Weight |
+|--------|-------|------|--------|--------|
+| AGE | 23 | Youth (21-24) | 1.45 | 2.50 |
+| EXPERIENCE | 3 | Junior (2-4y) | 1.20 | 1.50 |
+| CLAIMS | 1 | 1 claim | 1.15 | 2.00 |
+| CREDIT | Standard | Standard | 1.00 | 1.20 |
+| REGION | PL-MZ | Mazowieckie (Warsaw) | 1.25 | 1.00 |
+| MILEAGE | 15000 | High (15-25k) | 1.18 | 1.00 |
+| VEHICLE_AGE | 6 (year − 2020) | Mid (3-7y) | 1.00 | 0.80 |
+
+Formula: `Σ(factor × weight) / Σ(weights)` = `12.155 / 10.00` = **1.2155**.  
+Premium: `1000 × 1.2155` = **1 215.50 PLN**. Youth, one prior claim, and Warsaw load the rate; vehicle age is neutral.
+
+**`underwrite`.** Rule `young-driver` refers to UW only when age **&lt; 21**. This insured is 23, so `referred = false` and the transition goes to `quote`, not `refer`.
+
+**`quote`.** Status `Draft` -> `Quoted` (offer, still no policy number).
+
+**`bind`.** Status `Quoted` -> `InForce`, policy number `POL-` plus the first 8 hex chars of the policy UUID (e.g. `POL-40571CF1`). The policy is now in force and can accept a claim.
+
+The line `Workflow: Completed via draft -> rate -> underwrite -> quote -> bind` is the instance step history.
+
+#### 2. FNOL: a loss on the bound policy
+
+`=== First notice of loss ===` opens a Golf rear-end collision in Warsaw. Loss date is today, tier `Medium`, claimant is the same `Party`.
+
+`ClaimService` then runs:
+
+1. **`openFnol`** — validation (non-blank description, loss date not in the future) plus FNOL rules: the policy **must be InForce** (it is), and reserves must not exceed the 1 000 000 PLN limit. Medium tier -> status `Open`, claim number `CLM-` plus 8 hex chars.
+2. **`setReserve`** — `vehicle_damage` reserve of **8 500 PLN** -> `Reserved`.
+3. **`approve`** -> `Approved`.
+4. **`pay`** — indemnity **7 500 PLN** to the insured, reference `IND-GOLF-001` -> `Paid`.
+5. **`close`** -> `Closed`.
+
+Hence: `Claim: CLM-D889D119 status=Closed paid=7500,00 PLN`. Reserve 8 500 vs payment 7 500 is intentional (estimate vs actual indemnity).
+
+#### Paths this fixture does not take
+
+- Billing (installment invoices / cash application) is wired in `Services` but unused.
+- The `refer` branch (driver younger than 21) does not fire here.
+- The registered rating plugin is not executed through the plugin registry; the workflow calls rating directly.
+
+In one sentence: **a young Warsaw driver with one prior claim is charged 1 215.50 PLN instead of 1 000, the policy goes in force, then a collision claim is opened, reserved, approved, paid (7 500 PLN), and closed.**
+
 ## Running unit tests
 
 ```bash

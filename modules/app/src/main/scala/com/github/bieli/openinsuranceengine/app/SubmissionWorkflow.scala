@@ -23,7 +23,7 @@ final case class SubmissionState(
 )
 
 /**
- * PolicyCenter-style job: draft → rate → underwrite → quote|refer → bind.
+ * PolicyCenter-style job: draft -> rate -> underwrite -> quote|refer -> bind.
  */
 object SubmissionWorkflow:
 

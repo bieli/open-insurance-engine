@@ -8,7 +8,7 @@ import munit.CatsEffectSuite
 
 /**
  * New-business submission workflow with an underwriting gate —
- * mirrors PolicyCenter job progression: validate → underwrite → bind.
+ * mirrors PolicyCenter job progression: validate -> underwrite -> bind.
  */
 class SubmissionWorkflowSuite extends CatsEffectSuite:
 
