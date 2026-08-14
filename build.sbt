@@ -37,7 +37,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, rules, validation, policy, rating, plugins, billing, workflow, app)
+  .aggregate(core, rules, validation, policy, rating, plugins, billing, workflow, claim, app)
   .settings(
     name := "open-insurance-engine",
     publish / skip := true
@@ -72,6 +72,11 @@ lazy val billing = (project in file("modules/billing"))
   .settings(commonSettings)
   .settings(name := "oie-billing")
 
+lazy val claim = (project in file("modules/claim"))
+  .dependsOn(core, rules, validation, workflow, plugins)
+  .settings(commonSettings)
+  .settings(name := "oie-claim")
+
 lazy val workflow = (project in file("modules/workflow"))
   .dependsOn(core, rules)
   .settings(commonSettings)
@@ -83,14 +88,16 @@ lazy val validation = (project in file("modules/validation"))
   .settings(name := "oie-validation")
 
 lazy val app = (project in file("modules/app"))
-  .dependsOn(core, policy, rules, validation, rating, billing, plugins, workflow)
+  .dependsOn(core, rules, validation, workflow, plugins, rating, policy, billing, claim)
+  .settings(commonSettings)
   .settings(
     name := "open-insurance-engine-app",
     Compile / run / fork := true,
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect" % catsEffectV,
-      "org.typelevel" %% "log4cats-slf4j" % log4catsV,
-      "ch.qos.logback" % "logback-classic" % logbackV % Runtime
+      "com.monovore" %% "decline" % declineV,
+      "com.monovore" %% "decline-effect" % declineV,
+      "com.github.pureconfig" %% "pureconfig-core" % pureconfigV,
+      "com.github.pureconfig" %% "pureconfig-generic-scala3" % pureconfigV,
+      "ch.qos.logback" % "logback-classic" % logbackV
     )
   )
-
