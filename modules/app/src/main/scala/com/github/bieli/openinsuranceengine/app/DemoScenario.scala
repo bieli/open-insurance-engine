@@ -3,9 +3,12 @@ package com.github.bieli.openinsuranceengine.app
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.all.*
 import com.github.bieli.openinsuranceengine.billing.{BillingService, Invoice, Payment}
+import com.github.bieli.openinsuranceengine.claim.*
 import com.github.bieli.openinsuranceengine.core.algebra.Repository
 import com.github.bieli.openinsuranceengine.core.id.{
   AccountTag,
+  ClaimId,
+  ClaimTag,
   CoverageTag,
   EntityId,
   InvoiceId,
@@ -34,6 +37,7 @@ object Main extends IOApp:
   final case class Services(
       policy: PolicyService[IO],
       billing: BillingService[IO],
+      claim: ClaimService[IO],
       plugins: PluginRegistry[IO, PolicyPeriod],
       ratingEngine: RatingEngine,
       workflow: WorkflowEngine[IO, SubmissionState]
@@ -44,6 +48,7 @@ object Main extends IOApp:
       policyRepo <- Repository.inMemory[IO, PolicyId, PolicyPeriod](_.policyId)
       invoiceRepo <- Repository.inMemory[IO, InvoiceId, Invoice](_.id)
       paymentRepo <- Repository.inMemory[IO, PaymentId, Payment](_.id)
+      claimRepo <- Repository.inMemory[IO, ClaimId, Claim](_.id)
       plugins <- PluginRegistry.inMemory[IO, PolicyPeriod]
       engine = RatingEngine()
       demoProfile = InsuredProfile(
@@ -59,6 +64,7 @@ object Main extends IOApp:
     yield Services(
       policy = PolicyService[IO](policyRepo),
       billing = BillingService[IO](invoiceRepo, paymentRepo),
+      claim = ClaimService[IO](claimRepo),
       plugins = plugins,
       ratingEngine = engine,
       workflow = WorkflowEngine[IO, SubmissionState]
@@ -155,6 +161,57 @@ object DemoScenario:
       _ <- IO(
         println(
           s"Policy: status=${rated.status} number=${rated.policyNumber.getOrElse("N/A")}"
+        )
+      )
+      _ <- logger.info("=== First notice of loss ===")
+      opened <- services.claim
+        .openFnol(
+          Claim(
+            id = EntityId.random[ClaimTag](),
+            claimNumber = None,
+            policyId = rated.policyId,
+            status = ClaimStatus.Draft,
+            loss = LossDetails(
+              lossDate = today,
+              lossType = LossType.Collision,
+              description = "Rear-end collision, Volkswagen Golf",
+              location = Some("Warsaw, PL"),
+              policeReportNumber = Some("KSP-2026-88421")
+            ),
+            claimantId = partyId,
+            reserves = Nil,
+            payments = Nil,
+            tier = ClaimTier.Medium,
+            createdAt = EffectiveInstant.now(),
+            defaultCurrency = currency
+          ),
+          policyInForce = rated.status == PolicyStatus.InForce,
+          coverageLimit = Some(coverage.limit)
+        )
+        .flatMap(requireDomain("claim.openFnol"))
+      reserved <- services.claim
+        .setReserve(
+          opened,
+          Reserve(coverage.id, "vehicle_damage", Money.fromMajor(BigDecimal(8500), currency))
+        )
+        .flatMap(requireDomain("claim.setReserve"))
+      approved <- services.claim.approve(reserved).flatMap(requireDomain("claim.approve"))
+      paid <- services.claim
+        .pay(
+          approved,
+          ClaimPayment(
+            amount = Money.fromMajor(BigDecimal(7500), currency),
+            payeeId = partyId,
+            paidAt = EffectiveInstant.now(),
+            reference = Some("IND-GOLF-001")
+          )
+        )
+        .flatMap(requireDomain("claim.pay"))
+      closed <- services.claim.close(paid).flatMap(requireDomain("claim.close"))
+      _ <- IO(
+        println(
+          s"Claim: ${closed.claimNumber.getOrElse("N/A")} status=${closed.status} " +
+            s"paid=${closed.totalPaid.getOrElse(Money.zero(currency))}"
         )
       )
       _ <- IO(println(s"Services container available: ${services.getClass.getSimpleName}"))
