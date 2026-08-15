@@ -17,7 +17,8 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 | `billing` | BillingCenter: installment invoices, bill, apply payment |
 | `workflow` | Generic process engine: steps, transitions, guards, instance history |
 | `claim` | ClaimCenter: FNOL, reserves, approve, pay, close / deny |
-| `app` | Composition root and demo: submission workflow + rating + FNOL |
+| `documents` | Document production: templates, renderers, generated files (DEC, claim ack, …) |
+| `app` | Composition root and demo: submission workflow + rating + FNOL + documents |
 | `rulesStudio` | Visual catalog editor: React JS, served as static HTML/JS/CSS |
 
 ### Module dependencies
@@ -47,6 +48,7 @@ flowchart TB
     workflow["workflow"]
     rating["rating / RateBook"]
     claim["claim"]
+    documents["documents"]
   end
 
   subgraph runtime["Runtime"]
@@ -72,6 +74,7 @@ flowchart TB
   claim --> validation
   claim --> workflow
   claim --> plugins
+  documents --> core
 
   app --> core
   app --> rulesBox
@@ -82,6 +85,7 @@ flowchart TB
   app --> billing
   app --> workflow
   app --> claim
+  app --> documents
   rulesStudio --> rulesBox
 ```
 
@@ -138,23 +142,23 @@ cd modules/rules-studio/frontend && npm run dev
 
 ## Running demo app
 
-The demo binds a Personal Auto policy through the submission workflow (`draft -> rate -> underwrite -> quote -> bind`), then opens a collision FNOL and settles it (`open -> reserve -> approve -> pay -> close`).
+The demo binds a Personal Auto policy through the submission workflow (`draft -> rate -> underwrite -> quote -> bind`), issues policy declarations, then opens a collision FNOL and settles it (`open -> reserve -> approve -> pay -> close`) and issues a claim acknowledgement.
 
 ```bash
 sbt "app/run --demo"
 ```
 
 ```
-[info] Starting demo scenario on 2026-08-14...
-[info] 20:55:56.445 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Insured: age=23, licensed=3y, claims=1, credit=Standard, region=PL-MZ
-[info] 20:55:56.449 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - === New-business workflow: New Business Submission ===
-[info] 20:55:56.456 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: draft
-[info] 20:55:56.462 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: rate
-[info] 20:55:56.524 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: underwrite
-[info] 20:55:56.544 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: quote
-[info] 20:55:56.545 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: bind
-[info] Created Account: 4a68c77c-5140-4f8e-a4f8-118d4158bc3f, Party: 347b30f5-9192-4d7e-9891-678be9c58196
-[info] Product ID: 7a0f1f16-12b9-41fc-9723-c7431dde63c1, Policy ID: 40571cf1-ab7d-4659-94e7-36fe6c236756
+[info] Starting demo scenario on 2026-08-15...
+[info] 23:19:10.544 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Insured: age=23, licensed=3y, claims=1, credit=Standard, region=PL-MZ
+[info] 23:19:10.548 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - === New-business workflow: New Business Submission ===
+[info] 23:19:10.557 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: draft
+[info] 23:19:10.562 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: rate
+[info] 23:19:10.607 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: underwrite
+[info] 23:19:10.621 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: quote
+[info] 23:19:10.622 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - Workflow step: bind
+[info] Created Account: 6f1fb44e-6bba-4932-81f0-475908038f9f, Party: d79c39f9-7214-4fef-85de-214e86e5b6cd
+[info] Product ID: f58fd300-6287-4b6d-a72c-6fb37b7db3f2, Policy ID: 465ffd8d-970f-4c32-9075-1bc778ba3bdb
 [info] Coverage: BI (Base Premium: 1000,00 PLN)
 [info] Vehicle: Volkswagen Golf
 [info] Rated premium: 1215,50 PLN
@@ -171,21 +175,42 @@ sbt "app/run --demo"
 [info]     - MILEAGE          Annual mileage               input=15000        band=High (15-25k)    factor=1,180  weight= 1,00
 [info]     - VEHICLE_AGE      Vehicle age                  input=6            band=Mid (3-7y)       factor=1,000  weight= 0,80
 [info] Workflow: Completed via draft -> rate -> underwrite -> quote -> bind
-[info] Policy: status=InForce number=POL-40571CF1
-[info] 20:55:56.592 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - === First notice of loss ===
-[info] Claim: CLM-D889D119 status=Closed paid=7500,00 PLN
+[info] Policy: status=InForce number=POL-465FFD8D
+[info] 23:19:10.660 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - === Document production: policy declarations ===
+[info] Document: DEC-POL-465FFD8D.txt type=PolicyDeclarations 291 bytes
+[info] PERSONAL AUTO — POLICY DECLARATIONS
+[info] Policy: POL-465FFD8D
+[info] Status: InForce
+[info] Line: PersonalAuto
+[info] Term: 2026-08-15 / 2027-08-15
+[info] Insured age: 23  licensed: 3y  region: PL-MZ
+[info] Vehicle: 2020 Volkswagen Golf (WA12345)
+[info] Coverages:
+[info]   - BI limit=1000000,00 PLN deductible=500,00 PLN
+[info] Premium: 1215,50 PLN
+[info] 23:19:10.680 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - === First notice of loss ===
+[info] Claim: CLM-303766D5 status=Closed paid=7500,00 PLN
+[info] 23:19:10.707 [io-compute-11] INFO  c.g.b.openinsuranceengine.app.Main - === Document production: claim acknowledgement ===
+[info] Document: ACK-CLM-303766D5.txt type=ClaimAcknowledgement 196 bytes
+[info] CLAIM ACKNOWLEDGEMENT
+[info] Claim: CLM-303766D5
+[info] Policy: POL-465FFD8D
+[info] Status: Closed
+[info] Loss: Collision on 2026-08-15
+[info] Location: Warsaw, PL
+[info] Description: Rear-end collision, Volkswagen Golf
+[info] Paid: 7500,00 PLN
 [info] Services container available: Services
 [info] Finished!
-[success] Total time: 3 s, completed 14 sie 2026, 20:55:56
 ```
 
 ### What the demo does
 
-The demo replays one end-to-end customer story: **new Personal Auto policy -> rating -> bind -> collision claim and payout**. Everything runs in memory (in-memory repositories); there is no database and no network I/O.
+The demo replays one end-to-end customer story: **new Personal Auto policy -> rating -> bind -> declarations -> collision claim and payout -> claim acknowledgement**. Everything runs in memory (in-memory repositories); there is no database and no network I/O.
 
-There are two phases: **new business** (workflow), then **FNOL** (claim). Identifiers (`Account`, `Party`, `Product`, `Policy`, claim number) are random UUIDs, so they change on every run. Premium math is deterministic for this fixture.
+There are three phases: **new business** (workflow), **document production** (declarations), then **FNOL** (claim) plus a second document (acknowledgement). Identifiers (`Account`, `Party`, `Product`, `Policy`, claim number) are random UUIDs, so they change on every run. Premium math is deterministic for this fixture.
 
-The `Services` container also holds `BillingService` and a registered `PolicyRatingPlugin`, but **this run does not call billing**. Rating is invoked directly via `PolicyRatingPlugin.rateWithWorksheets`, not via `plugins.executeAll`.
+The `Services` container also holds `BillingService`, `DocumentService`, and a registered `PolicyRatingPlugin`. **This run does not call billing.** Rating is invoked directly via `PolicyRatingPlugin.rateWithWorksheets`, not via `plugins.executeAll`. Documents are rendered through `DocumentService` with in-memory `TextDocumentRenderer` templates (`PA-DEC-PL-2026`, `PA-CLAIM-ACK-PL-2026`).
 
 #### 0. The submission being rated
 
@@ -221,11 +246,15 @@ Premium: `1000 × 1.2155` = **1 215.50 PLN**. Youth, one prior claim, and Warsaw
 
 **`quote`.** Status `Draft` -> `Quoted` (offer, still no policy number).
 
-**`bind`.** Status `Quoted` -> `InForce`, policy number `POL-` plus the first 8 hex chars of the policy UUID (e.g. `POL-40571CF1`). The policy is now in force and can accept a claim.
+**`bind`.** Status `Quoted` -> `InForce`, policy number `POL-` plus the first 8 hex chars of the policy UUID (e.g. `POL-AA4D5094`). The policy is now in force and can accept a claim.
 
 The line `Workflow: Completed via draft -> rate -> underwrite -> quote -> bind` is the instance step history.
 
-#### 2. FNOL: a loss on the bound policy
+#### 2. Policy declarations
+
+Right after bind, `DocumentService.render("PA-DEC-PL-2026", …)` produces a text declarations page (`DEC-POL-AA4D5094.txt`): policy number, term, insured, vehicle, BI coverage, and the rated premium **1 215.50 PLN**. This is the Guidewire-style forms engine analogue (`documents` module): a registered `TextDocumentRenderer`, not a PDF library.
+
+#### 3. FNOL: a loss on the bound policy
 
 `=== First notice of loss ===` opens a Golf rear-end collision in Warsaw. Loss date is today, tier `Medium`, claimant is the same `Party`.
 
@@ -237,15 +266,18 @@ The line `Workflow: Completed via draft -> rate -> underwrite -> quote -> bind` 
 4. **`pay`** - indemnity **7 500 PLN** to the insured, reference `IND-GOLF-001` -> `Paid`.
 5. **`close`** -> `Closed`.
 
-Hence: `Claim: CLM-D889D119 status=Closed paid=7500,00 PLN`. Reserve 8 500 vs payment 7 500 is intentional (estimate vs actual indemnity).
+Hence: `Claim: CLM-FE86EAED status=Closed paid=7500,00 PLN`. Reserve 8 500 vs payment 7 500 is intentional (estimate vs actual indemnity).
+
+Then `DocumentService.render("PA-CLAIM-ACK-PL-2026", …)` issues `ACK-CLM-FE86EAED.txt`: claim number, policy, collision in Warsaw, paid **7 500.00 PLN**.
 
 #### Paths this fixture does not take
 
 - Billing (installment invoices / cash application) is wired in `Services` but unused.
 - The `refer` branch (driver younger than 21) does not fire here.
 - The registered rating plugin is not executed through the plugin registry; the workflow calls rating directly.
+- Document formats other than `Text` (PDF / HTML / XML) are in the domain model but not rendered here.
 
-In one sentence: **a young Warsaw driver with one prior claim is charged 1 215.50 PLN instead of 1 000, the policy goes in force, then a collision claim is opened, reserved, approved, paid (7 500 PLN), and closed.**
+In one sentence: **a young Warsaw driver with one prior claim is charged 1 215.50 PLN instead of 1 000, the policy goes in force with a declarations page, then a collision claim is opened, reserved, approved, paid (7 500 PLN), closed, and acknowledged in writing.**
 
 ## Running unit tests
 
@@ -254,7 +286,7 @@ sbt test
 
 ...
 
-[info] Passed: Total 180, Failed 0, Errors 0, Passed 68
+[info] Passed: Total 199, Failed 0, Errors 0
 ```
 
 

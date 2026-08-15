@@ -37,7 +37,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, rules, validation, policy, rating, plugins, billing, workflow, claim, app, rulesStudio)
+  .aggregate(core, rules, validation, policy, rating, plugins, billing, workflow, claim, documents, app, rulesStudio)
   .settings(
     name := "open-insurance-engine",
     publish / skip := true
@@ -80,6 +80,11 @@ lazy val claim = (project in file("modules/claim"))
   .settings(commonSettings)
   .settings(name := "oie-claim")
 
+lazy val documents = (project in file("modules/documents"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(name := "oie-documents")
+
 lazy val workflow = (project in file("modules/workflow"))
   .dependsOn(core, rules)
   .settings(commonSettings)
@@ -91,7 +96,7 @@ lazy val validation = (project in file("modules/validation"))
   .settings(name := "oie-validation")
 
 lazy val app = (project in file("modules/app"))
-  .dependsOn(core, rules, validation, workflow, plugins, rating, policy, billing, claim)
+  .dependsOn(core, rules, validation, workflow, plugins, rating, policy, billing, claim, documents)
   .settings(commonSettings)
   .settings(
     name := "open-insurance-engine-app",

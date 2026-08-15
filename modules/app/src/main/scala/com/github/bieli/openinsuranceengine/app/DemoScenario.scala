@@ -23,6 +23,7 @@ import com.github.bieli.openinsuranceengine.core.product.*
 import com.github.bieli.openinsuranceengine.core.risk.VehicleRisk
 import com.github.bieli.openinsuranceengine.core.time.{DateRange, EffectiveInstant}
 import com.github.bieli.openinsuranceengine.core.result.DomainResult
+import com.github.bieli.openinsuranceengine.documents.DocumentService
 import com.github.bieli.openinsuranceengine.plugins.PluginRegistry
 import com.github.bieli.openinsuranceengine.policy.*
 import com.github.bieli.openinsuranceengine.rating.*
@@ -38,6 +39,7 @@ object Main extends IOApp:
       policy: PolicyService[IO],
       billing: BillingService[IO],
       claim: ClaimService[IO],
+      documents: DocumentService[IO],
       plugins: PluginRegistry[IO, PolicyPeriod],
       ratingEngine: RatingEngine,
       workflow: WorkflowEngine[IO, SubmissionState]
@@ -49,6 +51,8 @@ object Main extends IOApp:
       invoiceRepo <- Repository.inMemory[IO, InvoiceId, Invoice](_.id)
       paymentRepo <- Repository.inMemory[IO, PaymentId, Payment](_.id)
       claimRepo <- Repository.inMemory[IO, ClaimId, Claim](_.id)
+      documents <- DocumentService.inMemory[IO]
+      _ <- DemoDocuments.register(documents)
       plugins <- PluginRegistry.inMemory[IO, PolicyPeriod]
       engine = RatingEngine()
       demoProfile = InsuredProfile(
@@ -65,6 +69,7 @@ object Main extends IOApp:
       policy = PolicyService[IO](policyRepo),
       billing = BillingService[IO](invoiceRepo, paymentRepo),
       claim = ClaimService[IO](claimRepo),
+      documents = documents,
       plugins = plugins,
       ratingEngine = engine,
       workflow = WorkflowEngine[IO, SubmissionState]
@@ -163,6 +168,15 @@ object DemoScenario:
           s"Policy: status=${rated.status} number=${rated.policyNumber.getOrElse("N/A")}"
         )
       )
+      _ <- logger.info("=== Document production: policy declarations ===")
+      declarations <- services.documents
+        .render(
+          DemoDocuments.PolicyDeclarationsId,
+          DemoDocuments.PolicyDeclarationsInput(rated, insured, vehicle)
+        )
+        .flatMap(requireDomain("documents.policyDeclarations"))
+      _ <- IO(println(DemoDocuments.describe(declarations)))
+      _ <- IO(println(new String(declarations.content, java.nio.charset.StandardCharsets.UTF_8).trim))
       _ <- logger.info("=== First notice of loss ===")
       opened <- services.claim
         .openFnol(
@@ -214,6 +228,18 @@ object DemoScenario:
             s"paid=${closed.totalPaid.getOrElse(Money.zero(currency))}"
         )
       )
+      _ <- logger.info("=== Document production: claim acknowledgement ===")
+      acknowledgement <- services.documents
+        .render(
+          DemoDocuments.ClaimAcknowledgementId,
+          DemoDocuments.ClaimAcknowledgementInput(
+            closed,
+            rated.policyNumber.getOrElse("N/A")
+          )
+        )
+        .flatMap(requireDomain("documents.claimAcknowledgement"))
+      _ <- IO(println(DemoDocuments.describe(acknowledgement)))
+      _ <- IO(println(new String(acknowledgement.content, java.nio.charset.StandardCharsets.UTF_8).trim))
       _ <- IO(println(s"Services container available: ${services.getClass.getSimpleName}"))
       _ <- IO(println("Finished!"))
     yield ()
