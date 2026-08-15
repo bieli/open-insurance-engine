@@ -1,4 +1,4 @@
-name: Unit tests
+name: CI
 
 on:
   push:
@@ -26,6 +26,17 @@ jobs:
 
     - name: Run unit tests and coverage
       run: sbt "clean; coverage; test; coverageReport"
+
+    - name: Run BDD (Gherkin) process tests
+      run: sbt "app/testOnly com.github.bieli.openinsuranceengine.app.bdd.BddFeaturesSuite"
+
+    - name: Upload Cucumber report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cucumber-report
+        path: target/cucumber
+        if-no-files-found: warn
 
     - name: Run demo scenario
       run: sbt "app/run --demo"

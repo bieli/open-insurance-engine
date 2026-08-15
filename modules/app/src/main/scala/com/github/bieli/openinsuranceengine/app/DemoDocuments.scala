@@ -53,7 +53,7 @@ object DemoDocuments:
         val coverages = in.period.coverages
           .map(c => s"  - ${c.code} limit=${c.limit} deductible=${c.deductible}")
           .mkString("\n")
-        s"""PERSONAL AUTO — POLICY DECLARATIONS
+        s"""PERSONAL AUTO - POLICY DECLARATIONS
            |Policy: $number
            |Status: ${in.period.status}
            |Line: ${in.period.lineOfBusiness}

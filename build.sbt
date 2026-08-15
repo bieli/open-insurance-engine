@@ -106,7 +106,8 @@ lazy val app = (project in file("modules/app"))
       "com.monovore" %% "decline-effect" % declineV,
       "com.github.pureconfig" %% "pureconfig-core" % pureconfigV,
       "com.github.pureconfig" %% "pureconfig-generic-scala3" % pureconfigV,
-      "ch.qos.logback" % "logback-classic" % logbackV
+      "ch.qos.logback" % "logback-classic" % logbackV,
+      "io.cucumber" %% "cucumber-scala" % "8.28.0" % Test
     )
   )
 

@@ -45,7 +45,7 @@ object Main extends IOApp:
       workflow: WorkflowEngine[IO, SubmissionState]
   )
 
-  private def buildServices: IO[Services] =
+  def buildServices: IO[Services] =
     for
       policyRepo <- Repository.inMemory[IO, PolicyId, PolicyPeriod](_.policyId)
       invoiceRepo <- Repository.inMemory[IO, InvoiceId, Invoice](_.id)

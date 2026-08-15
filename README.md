@@ -18,7 +18,7 @@ Architecture inspired by the typical domain ecosystem with below generic modules
 | `workflow` | Generic process engine: steps, transitions, guards, instance history |
 | `claim` | ClaimCenter: FNOL, reserves, approve, pay, close / deny |
 | `documents` | Document production: templates, renderers, generated files (DEC, claim ack, …) |
-| `app` | Composition root and demo: submission workflow + rating + FNOL + documents |
+| `app` | Composition root, demo, and Gherkin/Cucumber process tests |
 | `rulesStudio` | Visual catalog editor: React JS, served as static HTML/JS/CSS |
 
 ### Module dependencies
@@ -289,6 +289,34 @@ sbt test
 [info] Passed: Total 199, Failed 0, Errors 0
 ```
 
+## BDD (Gherkin / Cucumber)
+
+End-to-end insurance processes are described as Gherkin features and executed by Cucumber against the real `app` composition (`policy` + `rating` + `workflow` + `claim` + `billing` + `documents`).
+
+| File | What it covers |
+|------|----------------|
+| `modules/app/src/test/resources/features/personal_auto_new_business.feature` | Bind + declarations, UW referral for age &lt; 21, preferred-risk premium |
+| `modules/app/src/test/resources/features/personal_auto_claims.feature` | FNOL → pay → close, cancel blocks FNOL, reserve vs limit, high-severity refer, deny |
+| `modules/app/src/test/resources/features/personal_auto_billing_and_documents.feature` | Quarterly invoices vs written premium, declarations at bind |
+
+Step definitions live in `modules/app/src/test/scala/.../bdd/`. `sbt test` runs them (Cucumber is invoked from `BddFeaturesSuite`). Only the features:
+
+```bash
+sbt "app/testOnly com.github.bieli.openinsuranceengine.app.bdd.BddFeaturesSuite"
+```
+
+CI (`.github/workflows/run.yml`) runs that suite as **Run BDD (Gherkin) process tests** and uploads `target/cucumber` (HTML + JSON) as the `cucumber-report` artifact.
+
+Example (new business, from the feature file):
+
+```gherkin
+Scenario: Standard Warsaw driver binds and receives declarations
+  Given a Personal Auto applicant aged 23 licensed 3 years with 1 prior claim, credit Standard, region "PL-MZ"
+  When the new-business workflow runs to completion
+  Then the workflow path is "draft -> rate -> underwrite -> quote -> bind"
+  And the policy status is "InForce"
+  And the rated premium is 1215.50 PLN
+```
 
 ## Stack
 
@@ -300,6 +328,7 @@ sbt test
 - Decline
 - log4cats
 - MUnit
+- Cucumber / Gherkin (process-level BDD in `app`)
 - http4s (Rules Studio serving layer)
 - React JS (Rules Studio UI)
 
